@@ -191,21 +191,46 @@ export class TrelloClient {
       return await requestFn();
     } catch (error) {
       if (axios.isAxiosError(error)) {
+        // Handle rate limiting
         if (error.response?.status === 429) {
-          // Rate limit exceeded, wait and retry
           await new Promise(resolve => setTimeout(resolve, 1000));
           return this.handleRequest(requestFn);
         }
-        // Trello API Error
-        // Customize error handling based on Trello's error structure if needed
+
+        // Handle redirect errors (no response object)
+        if (error.code === 'ERR_FR_TOO_MANY_REDIRECTS' || error.message.includes('redirect')) {
+          console.error('[TRELLO-DEBUG] Redirect error detected');
+          console.error('[TRELLO-DEBUG] Error code:', error.code);
+          console.error('[TRELLO-DEBUG] Request URL:', error.config?.url);
+          console.error('[TRELLO-DEBUG] Request params:', error.config?.params);
+          throw new McpError(
+            ErrorCode.InternalError,
+            `Trello API redirect error: ${error.message}. Check API endpoint and authentication.`,
+            { url: error.config?.url, params: error.config?.params }
+          );
+        }
+
+        // Handle HTTP errors with responses
+        if (error.response) {
+          throw new McpError(
+            ErrorCode.InternalError,
+            `Trello API Error: ${error.response.status} ${error.message}`,
+            error.response.data
+          );
+        }
+
+        // Handle network errors without responses
         throw new McpError(
           ErrorCode.InternalError,
-          `Trello API Error: ${error.response?.status} ${error.message}`,
-          error.response?.data
+          `Trello network error: ${error.message}`,
+          { code: error.code }
         );
       } else {
-        // Unexpected Error
-        throw new McpError(ErrorCode.InternalError, 'An unexpected error occurred');
+        // Unexpected non-axios error
+        throw new McpError(
+          ErrorCode.InternalError,
+          `Unexpected error: ${error instanceof Error ? error.message : 'Unknown error'}`
+        );
       }
     }
   }
