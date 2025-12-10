@@ -65,7 +65,8 @@ export class TrelloClient {
         key: config.apiKey,
         token: config.token,
       },
-      maxRedirects: 0,
+      maxRedirects: 5,
+      validateStatus: (status) => status < 400,
     });
 
     this.rateLimiter = createTrelloRateLimiters();
