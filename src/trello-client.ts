@@ -61,8 +61,10 @@ export class TrelloClient {
       this.activeConfig.boardId = this.defaultBoardId;
     }
 
-    // Configure proxy if environment variables are set
-    const proxyUrl = process.env.https_proxy || process.env.HTTPS_PROXY || process.env.http_proxy || process.env.HTTP_PROXY;
+    // Configure proxy if environment variables are set, respecting NO_PROXY
+    const noProxy = process.env.NO_PROXY || process.env.no_proxy;
+    const shouldBypassProxy = noProxy === '*' || (noProxy && noProxy.includes('trello.com'));
+    const proxyUrl = !shouldBypassProxy && (process.env.https_proxy || process.env.HTTPS_PROXY || process.env.http_proxy || process.env.HTTP_PROXY);
     const httpsAgent = proxyUrl ? new HttpsProxyAgent(proxyUrl) : undefined;
 
     this.axiosInstance = axios.create({
