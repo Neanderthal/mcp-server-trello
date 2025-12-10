@@ -61,21 +61,50 @@ export class TrelloClient {
     }
     this.axiosInstance = axios.create({
       baseURL: 'https://api.trello.com/1',
-      params: {
-        key: config.apiKey,
-        token: config.token,
-      },
       maxRedirects: 5,
       validateStatus: (status) => status < 400,
     });
 
     this.rateLimiter = createTrelloRateLimiters();
 
-    // Add rate limiting interceptor
+    // Add rate limiting and auth interceptor
     this.axiosInstance.interceptors.request.use(async config => {
       await this.rateLimiter.waitForAvailableToken();
+
+      // Add auth params to each request instead of using defaults
+      config.params = {
+        ...config.params,
+        key: this.config.apiKey,
+        token: this.config.token,
+      };
+
+      // Debug logging
+      const fullUrl = `${config.baseURL}${config.url}`;
+      const params = new URLSearchParams(config.params as any).toString();
+      console.error(`[TRELLO-DEBUG] Request: ${config.method?.toUpperCase()} ${fullUrl}?${params}`);
+      console.error(`[TRELLO-DEBUG] maxRedirects: ${config.maxRedirects}`);
+
       return config;
     });
+
+    // Add response interceptor for debugging
+    this.axiosInstance.interceptors.response.use(
+      response => {
+        console.error(`[TRELLO-DEBUG] Response: ${response.status} ${response.statusText}`);
+        return response;
+      },
+      error => {
+        if (error.response) {
+          console.error(`[TRELLO-DEBUG] Error Response: ${error.response.status} ${error.response.statusText}`);
+          console.error(`[TRELLO-DEBUG] Error URL: ${error.config?.url}`);
+          console.error(`[TRELLO-DEBUG] Error Headers:`, JSON.stringify(error.response.headers, null, 2));
+        } else if (error.request) {
+          console.error(`[TRELLO-DEBUG] No response received`);
+          console.error(`[TRELLO-DEBUG] Error:`, error.message);
+        }
+        throw error;
+      }
+    );
   }
 
   /**
